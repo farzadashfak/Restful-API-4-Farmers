@@ -6,11 +6,11 @@ This is a basic RESTful API for a financial management system for farmers using 
 
 ## Technologies Used ##
 
-Python 3.9
-Flask 2.0.2
-Flask-RESTful 0.3.9
-Flask-RESTful-Swagger 0.21.0
-MongoDB 4.4.4
+1. Python 3.9
+2. Flask 2.0.2
+3. Flask-RESTful 0.3.9
+4. Flask-RESTful-Swagger 0.21.0
+5. MongoDB 4.4.4
 
 ## Getting Started ##
 
