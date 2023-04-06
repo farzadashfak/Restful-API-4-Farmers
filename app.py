@@ -1,108 +1,68 @@
-from flask import Flask, request
-from flask_restful import Api, Resource, reqparse, fields, marshal_with, abort
-from flask_restful_swagger import swagger
-from pymongo import MongoClient
+from flask import Flask, request, jsonify
+from flask_restful import Api, Resource
 from datetime import datetime
+from mongoengine import connect
+from models import Income, Expense
+from database import get_all_income, get_all_expenses
 
 app = Flask(__name__)
-api = swagger.docs(Api(app), apiVersion='0.1', api_spec_url='/docs')
+api = Api(app)
 
-# Connect to MongoDB
-client = MongoClient('mongodb://localhost:27017/')
-db = client['financial_management']
+connect('farmers_financial_management', host='localhost', port=27017)
 
-# Define data models
-income_fields = {
-    'id': fields.String,
-    'date': fields.DateTime(dt_format='iso8601'),
-    'description': fields.String,
-    'amount': fields.Float
-}
+@app.route('/')
+def home():
+    return 'Welcome to the financial management system for farmers!'
 
-expense_fields = {
-    'id': fields.String,
-    'date': fields.DateTime(dt_format='iso8601'),
-    'description': fields.String,
-    'amount': fields.Float
-}
+@app.route('/income', methods=['GET', 'POST'])
+def income():
+    if request.method == 'GET':
+        income = get_all_income()
+        return jsonify(income)
+    elif request.method == 'POST':
+        amount = request.json['amount']
+        description = request.json['description']
+        date = request.json['date']
+        add_income(amount, description, date)
+        return jsonify({"message": "Income added successfully!"})
 
-balance_fields = {
-    'income_total': fields.Float,
-    'expense_total': fields.Float,
-    'balance': fields.Float
-}
+@app.route('/expenses', methods=['GET', 'POST'])
+def expenses():
+    if request.method == 'GET':
+        expenses = get_all_expenses()
+        return jsonify(expenses)
+    elif request.method == 'POST':
+        amount = request.json['amount']
+        description = request.json['description']
+        date = request.json['date']
+        add_expense(amount, description, date)
+        return jsonify({"message": "Expense added successfully!"})
+        
+@app.route('/income-statement', methods=['GET'])
+def income_statement():
+    income = get_all_income()
+    total_income = sum(i.amount for i in income)
+    expenses = get_all_expenses()
+    total_expenses = sum(e.amount for e in expenses)
+    net_income = total_income - total_expenses
+    return jsonify({
+        "total_income": total_income,
+        "total_expenses": total_expenses,
+        "net_income": net_income
+    })
+    
+@app.route('/balance-sheet', methods=['GET'])
+def balance_sheet():
+    assets = get_all_income()
+    total_assets = sum(a.amount for a in assets)
+    liabilities = get_all_expenses()
+    total_liabilities = sum(l.amount for l in liabilities)
+    equity = total_assets - total_liabilities
+    return jsonify({
+        "total_assets": total_assets,
+        "total_liabilities": total_liabilities,
+        "equity": equity
+    })
 
-income_parser = reqparse.RequestParser(bundle_errors=True)
-income_parser.add_argument('date', type=str, required=True, help='Date of income (YYYY-MM-DD)')
-income_parser.add_argument('description', type=str, required=True, help='Description of income')
-income_parser.add_argument('amount', type=float, required=True, help='Amount of income')
-
-expense_parser = reqparse.RequestParser(bundle_errors=True)
-expense_parser.add_argument('date', type=str, required=True, help='Date of expense (YYYY-MM-DD)')
-expense_parser.add_argument('description', type=str, required=True, help='Description of expense')
-expense_parser.add_argument('amount', type=float, required=True, help='Amount of expense')
-
-# Define API resources
-class IncomeListResource(Resource):
-    @swagger.operation(
-        notes='Retrieve a list of income records',
-        responseClass=list,
-        nickname='get'
-    )
-    def get(self):
-        income_records = list(db.income.find())
-        return income_records
-
-    @swagger.operation(
-        notes='Add a new income record',
-        responseClass=income_fields,
-        nickname='post',
-        parameters=[
-            {
-                'name': 'income',
-                'description': 'Income data',
-                'required': True,
-                'allowMultiple': False,
-                'dataType': income_parser,
-                'paramType': 'body'
-            }
-        ]
-    )
-    @marshal_with(income_fields)
-    def post(self):
-        args = income_parser.parse_args()
-        date = datetime.strptime(args['date'], '%Y-%m-%d')
-        income_data = {
-            'date': date,
-            'description': args['description'],
-            'amount': args['amount']
-        }
-        result = db.income.insert_one(income_data)
-        income_data['id'] = str(result.inserted_id)
-        return income_data
-
-class ExpenseListResource(Resource):
-    @swagger.operation(
-        notes='Retrieve a list of expense records',
-        responseClass=list,
-        nickname='get'
-    )
-    def get(self):
-        expense_records = list(db.expense.find())
-        return expense_records
-
-    @swagger.operation(
-        notes='Add a new expense record',
-        responseClass=expense_fields,
-        nickname='post',
-        parameters=[
-            {
-                'name': 'expense',
-                'description': 'Expense data',
-                'required': True,
-                'allowMultiple': False,
-                'dataType': expense_parser,
-                'paramType': 'body'
-            }
-        ]
-    )
+if __name__ == '__main__':
+    app.run(debug=True)
